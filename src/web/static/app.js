@@ -460,7 +460,7 @@ function onPlay(msg) {
 
     // 构建出牌卡片 HTML
     const cardsHtml = msg.cards.map(c => cardHTML(c)).join('');
-    const label = msg.hand_type ? `<div style="font-size:12px;color:#aaa;margin-bottom:4px">${msg.hand_type}</div>` : '';
+    const label = msg.hand_type ? `<div class="hand-type-label">${msg.hand_type}</div>` : '';
     const strategy = msg.strategy ? `<div class="strategy-text">${msg.strategy}</div>` : '';
 
     // 根据牌型选择动画

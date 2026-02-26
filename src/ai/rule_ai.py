@@ -75,6 +75,16 @@ class RuleAI:
             r = singles[0]
             return [c for c in hand if c.rank == r][:1]
 
+        # 尝试出顺子（消牌效率高）
+        straight = self._find_free_straight(hand, rc)
+        if straight:
+            return straight
+
+        # 尝试出连对
+        consec_pairs = self._find_free_straight_pair(hand, rc)
+        if consec_pairs:
+            return consec_pairs
+
         # 出对子（最小的）
         pairs = sorted(r for r, cnt in rc.items() if cnt == 2)
         if pairs:
@@ -114,6 +124,12 @@ class RuleAI:
             return self._beat_triple(hand, rc, target_rank, kicker=2)
         elif target_type == HandType.BOMB:
             return self._beat_bomb(hand, rc, target_rank)
+        elif target_type == HandType.STRAIGHT:
+            return self._beat_straight(hand, rc, last)
+        elif target_type == HandType.STRAIGHT_PAIR:
+            return self._beat_straight_pair(hand, rc, last)
+        elif target_type in (HandType.AIRPLANE, HandType.AIRPLANE_WITH_SINGLES, HandType.AIRPLANE_WITH_PAIRS):
+            return self._beat_airplane(hand, rc, last)
 
         # 其他复杂牌型暂时不跟，直接 PASS
         return None
@@ -170,6 +186,87 @@ class RuleAI:
             return [c for c in hand if c.rank in (Rank.SMALL_JOKER, Rank.BIG_JOKER)]
         return None
 
+    # 顺子/连对/飞机不允许的点数
+    _CHAIN_FORBIDDEN = {Rank.TWO, Rank.SMALL_JOKER, Rank.BIG_JOKER}
+
+    def _beat_straight(self, hand: List[Card], rc: Counter, last: 'PlayedHand') -> Optional[List[Card]]:
+        """跟顺子：找同长度、main_rank 更大的顺子"""
+        length = last.chain_length
+        target_max = last.main_rank
+        # 收集可用的单张点数（排除2和王，排除四条保留炸弹）
+        avail = sorted(r for r in rc if r not in self._CHAIN_FORBIDDEN and rc[r] >= 1 and rc[r] < 4)
+        seq = self._find_chain(avail, length, target_max)
+        if seq is None:
+            return None
+        return [next(c for c in hand if c.rank == r) for r in seq]
+
+    def _beat_straight_pair(self, hand: List[Card], rc: Counter, last: 'PlayedHand') -> Optional[List[Card]]:
+        """跟连对：找同长度、main_rank 更大的连对"""
+        length = last.chain_length
+        target_max = last.main_rank
+        avail = sorted(r for r in rc if r not in self._CHAIN_FORBIDDEN and rc[r] >= 2 and rc[r] < 4)
+        seq = self._find_chain(avail, length, target_max)
+        if seq is None:
+            return None
+        cards = []
+        for r in seq:
+            cards.extend([c for c in hand if c.rank == r][:2])
+        return cards
+
+    def _beat_airplane(self, hand: List[Card], rc: Counter, last: 'PlayedHand') -> Optional[List[Card]]:
+        """跟飞机（含不带/带单/带对）：找同长度、main_rank 更大的连续三条"""
+        length = last.chain_length
+        target_max = last.main_rank
+        # 找可用的三条点数
+        avail = sorted(r for r in rc if r not in self._CHAIN_FORBIDDEN and rc[r] >= 3)
+        seq = self._find_chain(avail, length, target_max)
+        if seq is None:
+            return None
+        cards = []
+        for r in seq:
+            cards.extend([c for c in hand if c.rank == r][:3])
+        seq_set = set(seq)
+        # 根据原牌型决定带牌
+        if last.type == HandType.AIRPLANE_WITH_SINGLES:
+            for _ in range(length):
+                k = self._find_kicker(hand, seq_set, 1)
+                if k is None:
+                    return None
+                cards.extend(k)
+                seq_set.add(k[0].rank)
+        elif last.type == HandType.AIRPLANE_WITH_PAIRS:
+            remaining_rc = Counter(rc)
+            for r in seq:
+                remaining_rc[r] -= 3
+            for _ in range(length):
+                k = self._find_kicker_pair(hand, remaining_rc, seq_set)
+                if k is None:
+                    return None
+                cards.extend(k)
+                seq_set.add(k[0].rank)
+                remaining_rc[k[0].rank] -= 2
+        return cards
+
+    # ============================================================
+    #  链式查找辅助
+    # ============================================================
+
+    @staticmethod
+    def _find_chain(avail_ranks: List[Rank], length: int, min_max_rank: Rank) -> Optional[List[Rank]]:
+        """
+        在 avail_ranks（已排序）中找到 length 个连续点数的序列，
+        且序列最大值 > min_max_rank。返回最小的满足条件的序列。
+        """
+        if len(avail_ranks) < length:
+            return None
+        for i in range(len(avail_ranks) - length + 1):
+            window = avail_ranks[i:i + length]
+            # 检查连续性
+            is_consecutive = all(window[j + 1] - window[j] == 1 for j in range(length - 1))
+            if is_consecutive and window[-1] > min_max_rank:
+                return window
+        return None
+
     # ============================================================
     #  带牌辅助方法
     # ============================================================
@@ -192,4 +289,50 @@ class RuleAI:
         if candidates:
             r = candidates[0]
             return [c for c in hand if c.rank == r][:2]
+        return None
+
+    # ============================================================
+    #  自由出牌：顺子/连对查找
+    # ============================================================
+
+    def _find_free_straight(self, hand: List[Card], rc: Counter) -> Optional[List[Card]]:
+        """自由出牌时找最小的顺子（≥5张连续，排除2和王，保留炸弹）"""
+        avail = sorted(
+            r for r in rc
+            if r not in self._CHAIN_FORBIDDEN and rc[r] >= 1 and rc[r] < 4
+        )
+        for length in range(5, len(avail) + 1):
+            for i in range(len(avail) - length + 1):
+                window = avail[i:i + length]
+                is_consec = all(
+                    window[j + 1] - window[j] == 1
+                    for j in range(length - 1)
+                )
+                if is_consec:
+                    return [
+                        next(c for c in hand if c.rank == r)
+                        for r in window
+                    ]
+        return None
+
+    def _find_free_straight_pair(self, hand: List[Card], rc: Counter) -> Optional[List[Card]]:
+        """自由出牌时找最小的连对（≥3对连续，排除2和王，保留炸弹）"""
+        avail = sorted(
+            r for r in rc
+            if r not in self._CHAIN_FORBIDDEN and rc[r] >= 2 and rc[r] < 4
+        )
+        for length in range(3, len(avail) + 1):
+            for i in range(len(avail) - length + 1):
+                window = avail[i:i + length]
+                is_consec = all(
+                    window[j + 1] - window[j] == 1
+                    for j in range(length - 1)
+                )
+                if is_consec:
+                    cards = []
+                    for r in window:
+                        cards.extend(
+                            [c for c in hand if c.rank == r][:2]
+                        )
+                    return cards
         return None

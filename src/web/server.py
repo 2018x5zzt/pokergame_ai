@@ -2,11 +2,13 @@
 
 import asyncio
 import json
+import logging
 import random
 from typing import List, Set
 from pathlib import Path
 from collections import Counter
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -18,6 +20,12 @@ from src.game.player import Player, Role
 from src.game.game_state import GameState, GamePhase, GameEvent
 from src.game.controller import GameController
 from src.ai.rule_ai import RuleAI
+from src.ai.llm_ai import LlmAI, create_llm_players
+
+# 加载 .env 配置
+load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 
 # 牌型中文名
@@ -181,8 +189,9 @@ async def websocket_endpoint(ws: WebSocket):
 async def run_game_async() -> None:
     """异步驱动一局完整对局，每步实时推送事件到前端"""
     names = ["烈焰哥🔥", "冰山姐❄️", "戏精弟🎭"]
-    strategies = [RuleAI(), RuleAI(), RuleAI()]
-    gc = GameController(player_names=names, strategies=strategies)
+    llm_players = create_llm_players(names)
+    # GameController 仍使用同步接口（LlmAI 的同步方法 fallback 到 RuleAI）
+    gc = GameController(player_names=names, strategies=llm_players)
 
     # 发牌
     gc.deal()
@@ -219,7 +228,7 @@ async def run_game_async() -> None:
     await asyncio.sleep(1.0)
 
     # 叫地主阶段（异步逐步，带思考倒计时）
-    await run_bidding_async(gc, strategies)
+    await run_bidding_async(gc, llm_players)
 
     if gc.state.highest_bidder is None:
         gc.state.highest_bid = 1
@@ -239,7 +248,7 @@ async def run_game_async() -> None:
     await asyncio.sleep(1.5)
 
     # 出牌阶段：逐步执行，每步实时推送
-    await run_playing_async(gc, strategies)
+    await run_playing_async(gc, llm_players)
 
 
 # ============================================================
@@ -257,8 +266,8 @@ async def run_bidding_async(gc: GameController, strategies) -> None:
         think_time = get_thinking_seconds("bid")
         await broadcast_thinking(pid, "bid", think_time)
 
-        # AI 决策
-        bid = strategies[pid].decide_bid(player, s)
+        # AI 决策（异步 LLM 调用）
+        bid, strategy_text = await strategies[pid].async_decide_bid(player, s)
         bid = gc._validate_bid(bid)
 
         s.bid_scores[pid] = bid
@@ -274,6 +283,7 @@ async def run_bidding_async(gc: GameController, strategies) -> None:
             "type": "bid",
             "player_id": pid,
             "bid": bid,
+            "strategy": strategy_text,
         })
         await asyncio.sleep(0.8)
 
@@ -305,12 +315,13 @@ async def run_playing_async(gc: GameController, strategies) -> None:
         think_time = get_thinking_seconds("play")
         await broadcast_thinking(pid, "play", think_time)
 
-        # AI 决策
-        cards = strategies[pid].decide_play(player, s)
+        # AI 决策（异步 LLM 调用，返回 cards + strategy）
+        cards, strategy_text = await strategies[pid].async_decide_play(player, s)
 
         if cards is None:
             # 不出 (PASS)
-            strategy_text = describe_strategy(player, s, None, True)
+            if not strategy_text:
+                strategy_text = describe_strategy(player, s, None, True)
             s.pass_count += 1
             gc._emit(GameEvent(GamePhase.PLAYING, pid, "pass"))
             s.current_player = (pid + 1) % 3
@@ -322,8 +333,9 @@ async def run_playing_async(gc: GameController, strategies) -> None:
             })
             await asyncio.sleep(0.5)
         else:
-            # 出牌前生成策略描述
-            strategy_text = describe_strategy(player, s, cards, False)
+            # 出牌：LLM 未返回 strategy 时用 describe_strategy 兜底
+            if not strategy_text:
+                strategy_text = describe_strategy(player, s, cards, False)
 
             # 验证并执行出牌
             if not player.has_cards(cards):

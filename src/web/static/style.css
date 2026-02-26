@@ -533,14 +533,33 @@ button:active {
     50% { box-shadow: 0 0 28px rgba(255,215,0,0.5), inset 0 0 12px rgba(255,215,0,0.2); }
 }
 
-/* 策略文本（放大适配直播） */
+/* 策略文本（直播可读性优化：大字 + 高对比度 + 渐入动画） */
 .strategy-text {
-    font-size: 14px;
+    font-size: 16px;
+    font-weight: bold;
     color: #4fc3f7;
-    margin-top: 6px;
+    margin-top: 8px;
     text-align: center;
-    text-shadow: 0 0 6px rgba(79,195,247,0.4);
+    text-shadow: 0 0 8px rgba(79,195,247,0.5), 0 1px 2px rgba(0,0,0,0.6);
     white-space: nowrap;
+    letter-spacing: 1px;
+    animation: strategyFadeIn 0.6s ease-out;
+}
+
+@keyframes strategyFadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* 牌型名称标签（出牌区顶部） */
+.hand-type-label {
+    font-size: 14px;
+    font-weight: bold;
+    color: #ffd700;
+    margin-bottom: 6px;
+    text-align: center;
+    text-shadow: 0 0 6px rgba(255,215,0,0.4), 0 1px 2px rgba(0,0,0,0.5);
+    letter-spacing: 2px;
 }
 
 /* ============================================================
@@ -769,4 +788,14 @@ button:active {
 /* 竖屏飞行牌起点调整（牌桌中心偏移） */
 #app.vertical .flying-card {
     /* JS 中动态计算，此处仅保留基础样式 */
+}
+
+/* 竖屏策略文本：稍大字号适配窄屏 */
+#app.vertical .strategy-text {
+    font-size: 18px;
+}
+
+/* 竖屏牌型标签 */
+#app.vertical .hand-type-label {
+    font-size: 13px;
 }
