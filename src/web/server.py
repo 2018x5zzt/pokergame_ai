@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import random
 from typing import List, Set
 from pathlib import Path
 from collections import Counter
@@ -112,6 +113,32 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 connections: Set[WebSocket] = set()
 
 
+async def broadcast_thinking(player_id: int, phase: str, seconds: int) -> None:
+    """广播 AI 思考倒计时：先发 thinking 开始，然后逐秒倒计时"""
+    await broadcast({
+        "type": "thinking",
+        "player_id": player_id,
+        "phase": phase,
+        "total": seconds,
+        "remaining": seconds,
+    })
+    for i in range(seconds, 0, -1):
+        await asyncio.sleep(1.0)
+        await broadcast({
+            "type": "countdown",
+            "player_id": player_id,
+            "remaining": i - 1,
+        })
+
+
+def get_thinking_seconds(phase: str) -> int:
+    """获取思考时间（秒），带随机波动模拟真实感"""
+    if phase == "bid":
+        return random.randint(2, 4)
+    else:  # play
+        return random.randint(2, 5)
+
+
 async def broadcast(msg: dict) -> None:
     """向所有连接的客户端广播消息"""
     data = json.dumps(msg, ensure_ascii=False)
@@ -191,24 +218,14 @@ async def run_game_async() -> None:
     })
     await asyncio.sleep(1.0)
 
-    # 叫地主阶段
-    event_queue: List[GameEvent] = []
-    gc.on_event(lambda e: event_queue.append(e))
+    # 叫地主阶段（异步逐步，带思考倒计时）
+    await run_bidding_async(gc, strategies)
 
-    event_queue.clear()
-    success = gc.run_bidding()
-    for ev in event_queue:
-        if ev.action == "bid":
-            await broadcast({
-                "type": "bid",
-                "player_id": ev.player_id,
-                "bid": ev.data,
-            })
-            await asyncio.sleep(1.0)
-
-    if not success:
+    if gc.state.highest_bidder is None:
         gc.state.highest_bid = 1
         gc._assign_landlord(gc.state.first_bidder)
+    else:
+        gc._assign_landlord(gc.state.highest_bidder)
 
     # 地主确定
     landlord = next(p for p in gc.players if p.is_landlord)
@@ -226,7 +243,47 @@ async def run_game_async() -> None:
 
 
 # ============================================================
-#  逐步异步出牌（核心修复）
+#  异步叫地主（带思考倒计时）
+# ============================================================
+
+async def run_bidding_async(gc: GameController, strategies) -> None:
+    """异步执行叫地主，每人决策前有思考倒计时"""
+    s = gc.state
+    for _ in range(3):
+        pid = s.current_bidder
+        player = gc.players[pid]
+
+        # 思考倒计时
+        think_time = get_thinking_seconds("bid")
+        await broadcast_thinking(pid, "bid", think_time)
+
+        # AI 决策
+        bid = strategies[pid].decide_bid(player, s)
+        bid = gc._validate_bid(bid)
+
+        s.bid_scores[pid] = bid
+        s.bid_round_done += 1
+        gc._emit(GameEvent(GamePhase.BIDDING, pid, "bid", bid))
+
+        if bid > s.highest_bid:
+            s.highest_bid = bid
+            s.highest_bidder = pid
+
+        # 广播叫分结果
+        await broadcast({
+            "type": "bid",
+            "player_id": pid,
+            "bid": bid,
+        })
+        await asyncio.sleep(0.8)
+
+        if bid == 3:
+            break
+        s.current_bidder = (pid + 1) % 3
+
+
+# ============================================================
+#  逐步异步出牌（带思考倒计时）
 # ============================================================
 
 async def run_playing_async(gc: GameController, strategies) -> None:
@@ -244,6 +301,10 @@ async def run_playing_async(gc: GameController, strategies) -> None:
             s.last_player = None
             s.pass_count = 0
 
+        # 思考倒计时
+        think_time = get_thinking_seconds("play")
+        await broadcast_thinking(pid, "play", think_time)
+
         # AI 决策
         cards = strategies[pid].decide_play(player, s)
 
@@ -259,7 +320,7 @@ async def run_playing_async(gc: GameController, strategies) -> None:
                 "player_id": pid,
                 "strategy": strategy_text,
             })
-            await asyncio.sleep(0.8)
+            await asyncio.sleep(0.5)
         else:
             # 出牌前生成策略描述
             strategy_text = describe_strategy(player, s, cards, False)
@@ -305,7 +366,7 @@ async def run_playing_async(gc: GameController, strategies) -> None:
                 "hand": [card_to_dict(c) for c in player.hand],
                 "strategy": strategy_text,
             })
-            delay = 1.8 if hand.is_bomb_like else 1.2
+            delay = 1.2 if hand.is_bomb_like else 0.6
             await asyncio.sleep(delay)
 
             # 检查是否出完

@@ -448,3 +448,45 @@ button:active {
     text-shadow: 0 0 6px rgba(79,195,247,0.4);
     white-space: nowrap;
 }
+
+/* ============================================================
+   AI 思考倒计时
+   ============================================================ */
+
+.thinking-indicator {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+
+.thinking-dots {
+    font-size: 16px;
+    color: #ffd700;
+    letter-spacing: 1px;
+    animation: pulse 1.2s ease-in-out infinite;
+}
+
+.countdown-num {
+    font-size: 36px;
+    font-weight: bold;
+    color: #fff;
+    text-shadow: 0 0 12px rgba(255,215,0,0.6);
+    font-family: "Georgia", serif;
+    line-height: 1;
+}
+
+.countdown-urgent {
+    color: #e74c3c;
+    animation: urgentBlink 0.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
+}
+
+@keyframes urgentBlink {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(1.1); }
+}

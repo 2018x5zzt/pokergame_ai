@@ -95,14 +95,15 @@ def shuffle_and_deal(deck: List[Card]) -> tuple[List[Card], List[Card], List[Car
     shuffled = deck.copy()
     random.shuffle(shuffled)
 
-    hand1 = sorted(shuffled[0:17], key=lambda c: c.rank)
-    hand2 = sorted(shuffled[17:34], key=lambda c: c.rank)
-    hand3 = sorted(shuffled[34:51], key=lambda c: c.rank)
-    dizhu_cards = sorted(shuffled[51:54], key=lambda c: c.rank)
+    hand1 = sort_cards(shuffled[0:17])
+    hand2 = sort_cards(shuffled[17:34])
+    hand3 = sort_cards(shuffled[34:51])
+    dizhu_cards = sort_cards(shuffled[51:54])
 
     return hand1, hand2, hand3, dizhu_cards
 
 
 def sort_cards(cards: List[Card]) -> List[Card]:
-    """按点数排序手牌（从小到大）"""
-    return sorted(cards, key=lambda c: c.rank)
+    """按点数排序手牌（从大到小，同点数按花色排序：♠>♥>♦>♣）"""
+    suit_order = {Suit.SPADE: 0, Suit.HEART: 1, Suit.DIAMOND: 2, Suit.CLUB: 3, Suit.JOKER: -1}
+    return sorted(cards, key=lambda c: (-c.rank, suit_order.get(c.suit, 99)))

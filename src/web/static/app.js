@@ -146,6 +146,8 @@ function handleMessage(msg) {
         case 'deal_start': onDealStart(msg); break;
         case 'deal_card':  onDealCard(msg);  break;
         case 'deal_done':  onDealDone(msg);  break;
+        case 'thinking':   onThinking(msg);  break;
+        case 'countdown':  onCountdown(msg); break;
         case 'bid':        onBid(msg);       break;
         case 'landlord':   onLandlord(msg);  break;
         case 'play':       onPlay(msg);      break;
@@ -198,6 +200,32 @@ function onDealDone(msg) {
     // 显示底牌
     if (msg.dizhu_cards) {
         $('dizhu-cards-list').innerHTML = msg.dizhu_cards.map(c => cardHTML(c)).join('');
+    }
+}
+
+/** AI 开始思考：显示倒计时 */
+function onThinking(msg) {
+    const pid = msg.player_id;
+    highlightSeat(pid);
+    const phaseText = msg.phase === 'bid' ? '思考叫分中' : '思考出牌中';
+    setAction(pid,
+        `<div class="thinking-indicator">` +
+        `<span class="thinking-dots">${phaseText}</span>` +
+        `<span class="countdown-num" id="cd-${pid}">${msg.remaining}</span>` +
+        `</div>`,
+        'anim-fade'
+    );
+}
+
+/** 倒计时更新 */
+function onCountdown(msg) {
+    const el = $(`cd-${msg.player_id}`);
+    if (el) {
+        el.textContent = msg.remaining;
+        // 最后1秒闪烁
+        if (msg.remaining <= 1) {
+            el.classList.add('countdown-urgent');
+        }
     }
 }
 
