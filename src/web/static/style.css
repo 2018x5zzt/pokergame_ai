@@ -6,12 +6,11 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
-    background: #1a5c2a;
-    background-image: radial-gradient(ellipse at center, #2d7a3e 0%, #0d3318 100%);
+    background: #0d3318;
     color: #fff;
     font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
-    width: 1920px;
-    height: 1080px;
+    width: 100vw;
+    height: 100vh;
     overflow: hidden;
 }
 
@@ -19,6 +18,9 @@ body {
     width: 1920px;
     height: 1080px;
     position: relative;
+    background: #1a5c2a;
+    background-image: radial-gradient(ellipse at center, #2d7a3e 0%, #0d3318 100%);
+    transform-origin: top left;
 }
 
 /* ============================================================
@@ -419,9 +421,16 @@ button:active {
 }
 
 @keyframes bombShake {
-    0%, 100% { transform: translateX(0); }
-    10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
-    20%, 40%, 60%, 80% { transform: translateX(4px); }
+    0%, 100% { transform: translate(0, 0); }
+    10% { transform: translate(-6px, -3px); }
+    20% { transform: translate(6px, 2px); }
+    30% { transform: translate(-5px, 4px); }
+    40% { transform: translate(5px, -2px); }
+    50% { transform: translate(-4px, 3px); }
+    60% { transform: translate(4px, -3px); }
+    70% { transform: translate(-3px, 2px); }
+    80% { transform: translate(3px, -1px); }
+    90% { transform: translate(-2px, 1px); }
 }
 
 @keyframes popIn {
@@ -430,13 +439,92 @@ button:active {
 }
 
 .anim-fade { animation: fadeIn 0.4s ease-out; }
-.anim-bomb { animation: bombShake 0.5s ease-out; }
+.anim-bomb { animation: bombShake 0.6s ease-out; }
 .anim-pop  { animation: popIn 0.3s ease-out; }
 
-/* 当前出牌玩家高亮 */
+/* PASS 动画（缩放淡入） */
+.anim-pass { animation: passIn 0.4s ease-out; }
+@keyframes passIn {
+    from { opacity: 0; transform: scale(0.7) translateY(6px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* 出牌飞入动画（卡牌从手牌飞到中央） */
+.anim-fly-in { animation: cardFlyIn 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) both; }
+@keyframes cardFlyIn {
+    from { opacity: 0; transform: scale(0.5) translateY(40px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* 炸弹全屏闪光叠加层（z-index < 100，不盖结算弹窗） */
+.bomb-flash {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    pointer-events: none;
+    animation: bombFlash 0.6s ease-out forwards;
+}
+@keyframes bombFlash {
+    0%   { background: rgba(255,200,0,0.5); }
+    30%  { background: rgba(255,100,0,0.3); }
+    60%  { background: rgba(255,50,0,0.15); }
+    100% { background: transparent; }
+}
+
+/* 炸弹全屏震动（应用到 .table，避免与 fitScale 的 transform 冲突） */
+.screen-shake { animation: screenShake 0.5s ease-out; }
+@keyframes screenShake {
+    0%, 100% { transform: translate(0, 0); }
+    10% { transform: translate(-8px, -4px); }
+    20% { transform: translate(8px, 3px); }
+    30% { transform: translate(-6px, 5px); }
+    40% { transform: translate(6px, -3px); }
+    50% { transform: translate(-4px, 4px); }
+    60% { transform: translate(4px, -4px); }
+    70% { transform: translate(-3px, 2px); }
+    80% { transform: translate(2px, -1px); }
+}
+
+/* 火箭特效（更强烈的红金闪光） */
+.rocket-flash {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    pointer-events: none;
+    animation: rocketFlash 0.8s ease-out forwards;
+}
+@keyframes rocketFlash {
+    0%   { background: rgba(255,50,50,0.6); }
+    15%  { background: rgba(255,215,0,0.5); }
+    30%  { background: rgba(255,50,50,0.4); }
+    50%  { background: rgba(255,215,0,0.2); }
+    100% { background: transparent; }
+}
+
+/* 当前出牌玩家高亮（增强版：发光边框 + 脉冲） */
 .seat.active .player-name {
     color: #ffd700;
     text-shadow: 0 0 10px rgba(255,215,0,0.7);
+}
+.seat.active .player-info {
+    background: rgba(255,215,0,0.1);
+    border-radius: 8px;
+    padding: 4px 12px;
+    box-shadow: 0 0 16px rgba(255,215,0,0.3), inset 0 0 8px rgba(255,215,0,0.1);
+    animation: seatGlow 1.5s ease-in-out infinite;
+}
+.seat:not(.active) {
+    filter: brightness(0.7);
+    transition: filter 0.4s ease;
+}
+.seat.active {
+    filter: brightness(1);
+    transition: filter 0.4s ease;
+}
+
+@keyframes seatGlow {
+    0%, 100% { box-shadow: 0 0 16px rgba(255,215,0,0.3), inset 0 0 8px rgba(255,215,0,0.1); }
+    50% { box-shadow: 0 0 28px rgba(255,215,0,0.5), inset 0 0 12px rgba(255,215,0,0.2); }
 }
 
 /* 策略文本（放大适配直播） */
@@ -489,4 +577,190 @@ button:active {
 @keyframes urgentBlink {
     0%, 100% { opacity: 1; transform: scale(1); }
     50% { opacity: 0.5; transform: scale(1.1); }
+}
+
+/* ============================================================
+   发牌飞入动画
+   ============================================================ */
+
+/* 发牌起点：屏幕中央的牌堆 */
+.deal-source {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 50;
+    pointer-events: none;
+}
+
+/* 飞行中的卡牌 */
+.flying-card {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 40px;
+    height: 58px;
+    z-index: 51;
+    pointer-events: none;
+    will-change: transform, opacity;
+    transition: transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                opacity 0.35s ease-out;
+}
+
+/* ============================================================
+   底牌翻转动画
+   ============================================================ */
+
+.top-bar .dizhu-cards .cards {
+    perspective: 600px;
+}
+
+.dizhu-flip-card {
+    display: inline-block;
+    width: 42px;
+    height: 60px;
+    position: relative;
+    transform-style: preserve-3d;
+    transition: transform 0.6s ease-in-out;
+}
+
+.dizhu-flip-card.flipped {
+    transform: rotateY(180deg);
+}
+
+.dizhu-flip-card .flip-front,
+.dizhu-flip-card .flip-back {
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+    border-radius: 6px;
+}
+
+.dizhu-flip-card .flip-back {
+    transform: rotateY(0deg);
+}
+
+.dizhu-flip-card .flip-front {
+    transform: rotateY(180deg);
+}
+
+.dizhu-flip-card .flip-front .card {
+    width: 42px;
+    height: 60px;
+    margin: 0;
+}
+
+.dizhu-flip-card .flip-back .card-back {
+    width: 42px;
+    height: 60px;
+    margin: 0;
+}
+
+/* ============================================================
+   横屏/竖屏切换按钮
+   ============================================================ */
+
+.layout-toggle {
+    background: rgba(255,255,255,0.15);
+    color: #ffd700;
+    border: 1px solid rgba(255,215,0,0.4);
+    padding: 4px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    margin-left: 16px;
+    transition: background 0.2s, transform 0.15s;
+    white-space: nowrap;
+}
+.layout-toggle:hover {
+    background: rgba(255,215,0,0.25);
+    transform: scale(1.05);
+    box-shadow: 0 2px 8px rgba(255,215,0,0.3);
+}
+
+/* ============================================================
+   竖屏布局（9:16，1080×1920，抖音竖屏直播适配）
+   通过 #app.vertical 切换
+   ============================================================ */
+
+#app.vertical {
+    width: 1080px;
+    height: 1920px;
+}
+
+/* 竖屏顶部栏：紧凑排列 */
+#app.vertical .top-bar {
+    height: 52px;
+    padding: 8px 20px;
+    flex-wrap: wrap;
+}
+#app.vertical .top-bar h1 {
+    font-size: 20px;
+}
+#app.vertical .game-info {
+    font-size: 14px;
+}
+
+/* 竖屏牌桌：高度更大 */
+#app.vertical .table {
+    width: 1080px;
+    height: 1868px; /* 1920 - 52px top-bar */
+}
+
+/* 竖屏座位：三人纵向排列（上-中-下） */
+#app.vertical .seat-top {
+    top: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+#app.vertical .seat-bottom-left {
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: auto;
+    top: 1300px;
+    align-items: center;
+}
+
+#app.vertical .seat-bottom-right {
+    right: auto;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 40px;
+    align-items: center;
+}
+
+/* 竖屏中央出牌区：纵向排列 */
+#app.vertical .center-play-area {
+    top: 45%;
+    min-width: 400px;
+    gap: 16px;
+}
+
+#app.vertical .action-row-bottom {
+    flex-direction: column;
+    width: auto;
+    gap: 16px;
+    align-items: center;
+}
+
+/* 竖屏手牌区：宽度适配窄屏 */
+#app.vertical .player-hand {
+    max-width: 900px;
+}
+
+#app.vertical .seat-bottom-left .player-hand,
+#app.vertical .seat-bottom-right .player-hand {
+    max-width: 900px;
+}
+
+/* 竖屏 action-slot 左右对齐改为居中 */
+#app.vertical .action-slot-left,
+#app.vertical .action-slot-right {
+    justify-content: center;
+}
+
+/* 竖屏飞行牌起点调整（牌桌中心偏移） */
+#app.vertical .flying-card {
+    /* JS 中动态计算，此处仅保留基础样式 */
 }

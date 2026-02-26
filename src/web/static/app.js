@@ -10,6 +10,7 @@ const RED_SUITS = new Set(['♥', '♦']);
 // ============================================================
 
 let ws = null;
+let restartTimer = null;  // 结算倒计时 timer
 
 function connect() {
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
@@ -115,7 +116,7 @@ function setAction(playerId, html, animClass) {
     const el = $(`action-${playerId}`);
     el.innerHTML = html;
     if (animClass) {
-        el.classList.remove('anim-fade', 'anim-bomb', 'anim-pop');
+        el.classList.remove('anim-fade', 'anim-bomb', 'anim-pop', 'anim-pass', 'anim-fly-in');
         void el.offsetWidth; // 触发 reflow 重置动画
         el.classList.add(animClass);
     }
@@ -133,6 +134,98 @@ function highlightSeat(playerId) {
     document.querySelectorAll('.seat').forEach(s => s.classList.remove('active'));
     if (playerId !== null && playerId !== undefined) {
         $(`seat-${playerId}`).classList.add('active');
+    }
+}
+
+// ============================================================
+//  发牌飞入动画
+// ============================================================
+
+/** 获取手牌区的屏幕中心坐标（飞入目标点） */
+function getHandTarget(playerId) {
+    const el = $(`hand-${playerId}`);
+    const rect = el.getBoundingClientRect();
+    return {
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+    };
+}
+
+/** 创建一张飞行中的背面牌，从屏幕中央飞向目标玩家手牌区 */
+function flyCardToHand(playerId) {
+    const table = document.querySelector('.table');
+    const app = document.getElementById('app');
+    const isVertical = app.classList.contains('vertical');
+    const card = document.createElement('span');
+    card.className = 'flying-card';
+    card.innerHTML = '<span class="card-back" style="width:40px;height:58px;margin:0"></span>';
+    table.appendChild(card);
+
+    // 起点：牌桌中央（根据布局模式）
+    const startX = isVertical ? 540 : 960;
+    const startY = isVertical ? 934 : 512;
+    card.style.left = startX + 'px';
+    card.style.top = startY + 'px';
+    card.style.transform = 'translate(-50%, -50%) scale(0.8)';
+    card.style.opacity = '1';
+
+    // 计算目标位置
+    const target = getHandTarget(playerId);
+    // 目标坐标相对于 .table（横屏 top-bar=56px，竖屏=52px）
+    const topBarH = isVertical ? 52 : 56;
+    const endX = target.x;
+    const endY = target.y - topBarH;
+
+    // 触发 reflow 后设置终点
+    void card.offsetWidth;
+    card.style.transform = `translate(${endX - startX - 20}px, ${endY - startY}px) scale(1)`;
+    card.style.opacity = '0.3';
+
+    // 动画结束后移除
+    setTimeout(() => {
+        if (card.parentNode) card.parentNode.removeChild(card);
+    }, 380);
+}
+
+// ============================================================
+//  底牌翻转动画
+// ============================================================
+
+/** 炸弹/火箭全屏特效：闪光 + 屏幕震动 */
+function triggerBombEffect(isRocket) {
+    // 全屏闪光层
+    const flash = document.createElement('div');
+    flash.className = isRocket ? 'rocket-flash' : 'bomb-flash';
+    document.body.appendChild(flash);
+    setTimeout(() => flash.remove(), isRocket ? 850 : 650);
+
+    // 屏幕震动（应用到 .table 避免与 fitScale 的 transform 冲突）
+    const table = document.querySelector('.table');
+    table.classList.remove('screen-shake');
+    void table.offsetWidth;
+    table.classList.add('screen-shake');
+    setTimeout(() => table.classList.remove('screen-shake'), 550);
+}
+
+/** 生成底牌翻转卡片 HTML（初始显示背面） */
+function dizhuFlipCardHTML(card) {
+    return `<div class="dizhu-flip-card">` +
+        `<div class="flip-back"><span class="card-back" style="width:42px;height:60px;margin:0"></span></div>` +
+        `<div class="flip-front">${cardHTML(card)}</div>` +
+        `</div>`;
+}
+
+/** 执行底牌翻转动画（依次翻转3张） */
+async function flipDizhuCards(cards) {
+    const container = $('dizhu-cards-list');
+    // 先放置背面牌
+    container.innerHTML = cards.map(c => dizhuFlipCardHTML(c)).join('');
+
+    // 依次翻转
+    const flipCards = container.querySelectorAll('.dizhu-flip-card');
+    for (let i = 0; i < flipCards.length; i++) {
+        await sleep(200);
+        flipCards[i].classList.add('flipped');
     }
 }
 
@@ -161,16 +254,18 @@ function handleMessage(msg) {
 // ============================================================
 
 // 逐张发牌状态
-const dealState = { hands: [[], [], []] };
+const dealState = { hands: [[], [], []], dizhuCards: [] };
 
 /** 发牌开始：初始化界面 */
 function onDealStart(msg) {
+    clearRestartCountdown();  // 清除结算倒计时，防止 timer 叠加
     $('phase-text').textContent = '发牌中';
     $('multiplier-text').textContent = '';
     $('result-modal').style.display = 'none';
     clearAllActions();
     $('dizhu-cards-list').innerHTML = '';
     dealState.hands = [[], [], []];
+    dealState.dizhuCards = [];
 
     msg.players.forEach(p => {
         $(`name-${p.id}`).textContent = p.name;
@@ -180,15 +275,20 @@ function onDealStart(msg) {
     });
 }
 
-/** 逐张发牌：收到一张牌 */
+/** 逐张发牌：收到一张牌（带飞入动画） */
 function onDealCard(msg) {
     const pid = msg.player_id;
     dealState.hands[pid].push(msg.card);
+
+    // 触发飞入动画
+    flyCardToHand(pid);
+
+    // 同时更新手牌显示
     renderHandCards(pid, dealState.hands[pid]);
     updateCount(pid, dealState.hands[pid].length);
 }
 
-/** 发牌完成：显示完整手牌 */
+/** 发牌完成：显示完整手牌，底牌显示背面 */
 function onDealDone(msg) {
     $('phase-text').textContent = '叫地主阶段';
     msg.players.forEach(p => {
@@ -197,9 +297,12 @@ function onDealDone(msg) {
         }
         updateCount(p.id, p.hand_size);
     });
-    // 显示底牌
+    // 底牌先显示背面（等地主确定时翻转）
     if (msg.dizhu_cards) {
-        $('dizhu-cards-list').innerHTML = msg.dizhu_cards.map(c => cardHTML(c)).join('');
+        dealState.dizhuCards = msg.dizhu_cards;
+        $('dizhu-cards-list').innerHTML = msg.dizhu_cards.map(() =>
+            `<span class="card-back" style="width:42px;height:60px;margin:0"></span>`
+        ).join('');
     }
 }
 
@@ -277,6 +380,39 @@ function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+// ============================================================
+//  结算倒计时（自动再来一局）
+// ============================================================
+
+/** 启动结算倒计时，countdown 秒后自动开始下一局 */
+function startRestartCountdown(seconds) {
+    clearRestartCountdown();
+    let remaining = seconds;
+    const btn = $('btn-restart');
+    btn.textContent = `再来一局 (${remaining}s)`;
+
+    restartTimer = setInterval(() => {
+        remaining--;
+        if (remaining <= 0) {
+            clearRestartCountdown();
+            $('result-modal').style.display = 'none';
+            send({ action: 'start' });
+        } else {
+            btn.textContent = `再来一局 (${remaining}s)`;
+        }
+    }, 1000);
+}
+
+/** 清除结算倒计时 */
+function clearRestartCountdown() {
+    if (restartTimer !== null) {
+        clearInterval(restartTimer);
+        restartTimer = null;
+    }
+    const btn = $('btn-restart');
+    if (btn) btn.textContent = '再来一局';
+}
+
 /** 叫地主 */
 function onBid(msg) {
     $('phase-text').textContent = '叫地主阶段';
@@ -288,8 +424,8 @@ function onBid(msg) {
     );
 }
 
-/** 地主确定 */
-function onLandlord(msg) {
+/** 地主确定（带底牌翻转动画） */
+async function onLandlord(msg) {
     $('phase-text').textContent = '出牌阶段';
     $('multiplier-text').textContent = `倍数: ${msg.highest_bid}`;
     clearAllActions();
@@ -306,8 +442,8 @@ function onLandlord(msg) {
         updateCount(p.id, p.hand_size);
     });
 
-    // 显示底牌
-    $('dizhu-cards-list').innerHTML = msg.dizhu_cards.map(c => cardHTML(c)).join('');
+    // 底牌翻转动画
+    await flipDizhuCards(msg.dizhu_cards);
 }
 
 /** 出牌 */
@@ -326,9 +462,14 @@ function onPlay(msg) {
     const cardsHtml = msg.cards.map(c => cardHTML(c)).join('');
     const label = msg.hand_type ? `<div style="font-size:12px;color:#aaa;margin-bottom:4px">${msg.hand_type}</div>` : '';
     const strategy = msg.strategy ? `<div class="strategy-text">${msg.strategy}</div>` : '';
-    const anim = msg.is_bomb ? 'anim-bomb' : 'anim-fade';
 
-    setAction(msg.player_id, label + cardsHtml + strategy, anim);
+    // 根据牌型选择动画
+    if (msg.is_bomb) {
+        triggerBombEffect(msg.hand_type === '火箭');
+        setAction(msg.player_id, label + cardsHtml + strategy, 'anim-bomb');
+    } else {
+        setAction(msg.player_id, label + cardsHtml + strategy, 'anim-fly-in');
+    }
 
     // 炸弹时更新倍数显示
     if (msg.is_bomb) {
@@ -344,7 +485,7 @@ function onPass(msg) {
     const strategy = msg.strategy ? `<div class="strategy-text">${msg.strategy}</div>` : '';
     setAction(msg.player_id,
         `<span class="action-text">不出</span>${strategy}`,
-        'anim-fade'
+        'anim-pass'
     );
 }
 
@@ -378,6 +519,26 @@ function onResult(msg) {
 
     // 显示弹窗
     $('result-modal').style.display = 'flex';
+
+    // 自动倒计时 10 秒后开始下一局
+    startRestartCountdown(10);
+}
+
+// ============================================================
+//  自适应缩放（1920×1080 设计稿 → 任意窗口）
+// ============================================================
+
+function fitScale() {
+    const app = document.getElementById('app');
+    const isVertical = app.classList.contains('vertical');
+    const designW = isVertical ? 1080 : 1920;
+    const designH = isVertical ? 1920 : 1080;
+    const scaleX = window.innerWidth / designW;
+    const scaleY = window.innerHeight / designH;
+    const scale = Math.min(scaleX, scaleY);
+    const offsetX = (window.innerWidth - designW * scale) / 2;
+    const offsetY = (window.innerHeight - designH * scale) / 2;
+    app.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
 }
 
 // ============================================================
@@ -385,6 +546,8 @@ function onResult(msg) {
 // ============================================================
 
 document.addEventListener('DOMContentLoaded', () => {
+    fitScale();
+    window.addEventListener('resize', fitScale);
     connect();
 
     // 开始按钮
@@ -393,9 +556,20 @@ document.addEventListener('DOMContentLoaded', () => {
         send({ action: 'start' });
     });
 
-    // 再来一局
+    // 再来一局（手动点击跳过倒计时）
     $('btn-restart').addEventListener('click', () => {
+        clearRestartCountdown();
         $('result-modal').style.display = 'none';
         send({ action: 'start' });
+    });
+
+    // 横屏/竖屏切换
+    $('btn-layout').addEventListener('click', () => {
+        const app = document.getElementById('app');
+        const btn = $('btn-layout');
+        app.classList.toggle('vertical');
+        const isVertical = app.classList.contains('vertical');
+        btn.textContent = isVertical ? '🖥️ 横屏' : '📱 竖屏';
+        fitScale();
     });
 });
