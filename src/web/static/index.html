@@ -17,9 +17,26 @@
                 <div class="cards" id="dizhu-cards-list"></div>
             </div>
             <div class="game-info">
+                <span id="game-count-text"></span>
                 <span id="phase-text">等待开始</span>
                 <span id="multiplier-text"></span>
                 <button id="btn-layout" class="layout-toggle" title="切换横屏/竖屏">📱 竖屏</button>
+            </div>
+        </div>
+
+        <!-- 积分排行榜 -->
+        <div class="scoreboard" id="scoreboard">
+            <div class="score-item" id="score-item-0">
+                <span class="score-name" id="score-name-0">烈焰哥🔥</span>
+                <span class="score-value" id="score-value-0">0</span>
+            </div>
+            <div class="score-item" id="score-item-1">
+                <span class="score-name" id="score-name-1">冰山姐❄️</span>
+                <span class="score-value" id="score-value-1">0</span>
+            </div>
+            <div class="score-item" id="score-item-2">
+                <span class="score-name" id="score-name-2">戏精弟🎭</span>
+                <span class="score-value" id="score-value-2">0</span>
             </div>
         </div>
 
@@ -62,6 +79,12 @@
                     <span class="hand-count" id="count-2">17张</span>
                 </div>
                 <div class="player-hand" id="hand-2"></div>
+            </div>
+
+            <!-- 出牌历史侧边栏 -->
+            <div class="play-history" id="play-history">
+                <div class="history-title">📜 出牌记录</div>
+                <div class="history-list" id="history-list"></div>
             </div>
         </div>
 

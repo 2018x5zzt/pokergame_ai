@@ -102,6 +102,11 @@ class RuleAI:
                 cards.extend(kicker)
             return cards
 
+        # 四带二（优先级低于顺子/连对/三条，高于炸弹）
+        four_play = self._find_free_four_with_two(hand, rc)
+        if four_play:
+            return four_play
+
         # 最后出最小的单张
         return [min(hand, key=lambda c: c.rank)]
 
@@ -130,6 +135,10 @@ class RuleAI:
             return self._beat_straight_pair(hand, rc, last)
         elif target_type in (HandType.AIRPLANE, HandType.AIRPLANE_WITH_SINGLES, HandType.AIRPLANE_WITH_PAIRS):
             return self._beat_airplane(hand, rc, last)
+        elif target_type == HandType.FOUR_WITH_TWO_SINGLES:
+            return self._beat_four_with_two_singles(hand, rc, target_rank)
+        elif target_type == HandType.FOUR_WITH_TWO_PAIRS:
+            return self._beat_four_with_two_pairs(hand, rc, target_rank)
 
         # 其他复杂牌型暂时不跟，直接 PASS
         return None
@@ -184,6 +193,46 @@ class RuleAI:
         # 火箭压炸弹
         if Rank.SMALL_JOKER in rc and Rank.BIG_JOKER in rc:
             return [c for c in hand if c.rank in (Rank.SMALL_JOKER, Rank.BIG_JOKER)]
+        return None
+
+    def _beat_four_with_two_singles(
+        self, hand: List[Card], rc: Counter, target: Rank
+    ) -> Optional[List[Card]]:
+        """找比 target 大的最小四条 + 两张单牌"""
+        candidates = sorted(r for r in rc if r > target and rc[r] == 4)
+        for r in candidates:
+            cards = [c for c in hand if c.rank == r]
+            exclude = {r}
+            k1 = self._find_kicker(hand, exclude, 1)
+            if k1 is None:
+                continue
+            exclude.add(k1[0].rank)
+            k2 = self._find_kicker(hand, exclude, 1)
+            if k2 is None:
+                continue
+            cards.extend(k1)
+            cards.extend(k2)
+            return cards
+        return None
+
+    def _beat_four_with_two_pairs(
+        self, hand: List[Card], rc: Counter, target: Rank
+    ) -> Optional[List[Card]]:
+        """找比 target 大的最小四条 + 两对"""
+        candidates = sorted(r for r in rc if r > target and rc[r] == 4)
+        for r in candidates:
+            cards = [c for c in hand if c.rank == r]
+            exclude = {r}
+            p1 = self._find_kicker_pair(hand, rc, exclude)
+            if p1 is None:
+                continue
+            exclude.add(p1[0].rank)
+            p2 = self._find_kicker_pair(hand, rc, exclude)
+            if p2 is None:
+                continue
+            cards.extend(p1)
+            cards.extend(p2)
+            return cards
         return None
 
     # 顺子/连对/飞机不允许的点数
@@ -334,5 +383,32 @@ class RuleAI:
                         cards.extend(
                             [c for c in hand if c.rank == r][:2]
                         )
+                    return cards
+        return None
+
+    def _find_free_four_with_two(self, hand: List[Card], rc: Counter) -> Optional[List[Card]]:
+        """自由出牌时找最小的四带二（优先带单，带不了单就带对）"""
+        fours = sorted(r for r in rc if rc[r] == 4)
+        for r in fours:
+            cards = [c for c in hand if c.rank == r]
+            exclude = {r}
+            # 优先四带二单
+            k1 = self._find_kicker(hand, exclude, 1)
+            if k1:
+                exclude.add(k1[0].rank)
+                k2 = self._find_kicker(hand, exclude, 1)
+                if k2:
+                    cards.extend(k1)
+                    cards.extend(k2)
+                    return cards
+            # 尝试四带二对
+            exclude = {r}
+            p1 = self._find_kicker_pair(hand, rc, exclude)
+            if p1:
+                exclude.add(p1[0].rank)
+                p2 = self._find_kicker_pair(hand, rc, exclude)
+                if p2:
+                    cards.extend(p1)
+                    cards.extend(p2)
                     return cards
         return None

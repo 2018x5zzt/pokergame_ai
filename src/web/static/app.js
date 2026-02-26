@@ -138,6 +138,86 @@ function highlightSeat(playerId) {
 }
 
 // ============================================================
+//  积分排行榜
+// ============================================================
+
+/** 更新积分排行榜显示 */
+function updateScoreboard(totalScores) {
+    if (!totalScores) return;
+    totalScores.forEach(s => {
+        const nameEl = $(`score-name-${s.id}`);
+        const valEl = $(`score-value-${s.id}`);
+        if (!nameEl || !valEl) return;
+        nameEl.textContent = s.name;
+        const score = s.total_score;
+        valEl.textContent = score > 0 ? `+${score}` : String(score);
+        valEl.className = 'score-value ' +
+            (score > 0 ? 'positive' : score < 0 ? 'negative' : 'zero');
+    });
+}
+
+/** 积分变化闪烁动画 */
+function flashScores() {
+    for (let i = 0; i < 3; i++) {
+        const el = $(`score-value-${i}`);
+        if (!el) continue;
+        el.classList.remove('score-changed');
+        void el.offsetWidth;
+        el.classList.add('score-changed');
+    }
+}
+
+// ============================================================
+//  出牌历史记录
+// ============================================================
+
+const MAX_HISTORY = 30;  // 最多保留条数
+const playerNames = {};  // player_id → name 映射
+
+/** 生成迷你卡牌 HTML（用于历史记录） */
+function miniCardHTML(card) {
+    const isRed = RED_SUITS.has(card.suit);
+    const display = rankDisplay(card.rank);
+    if (card.rank === 16) return `<span class="mini-card">小王</span>`;
+    if (card.rank === 17) return `<span class="mini-card">大王</span>`;
+    const cls = isRed ? 'mini-card red' : 'mini-card';
+    return `<span class="${cls}">${card.suit}${display}</span>`;
+}
+
+/** 添加一条出牌历史 */
+function addHistoryItem(playerId, handType, cards, isPass) {
+    const list = $('history-list');
+    const name = playerNames[playerId] || `P${playerId}`;
+    const item = document.createElement('div');
+
+    if (isPass) {
+        item.className = 'history-item h-pass';
+        item.innerHTML = `<span class="h-name">${name}</span><span>不出</span>`;
+    } else {
+        item.className = 'history-item';
+        const typeTag = handType ? `<span class="h-type">${handType}</span>` : '';
+        const cardsHtml = cards.map(c => miniCardHTML(c)).join('');
+        item.innerHTML =
+            `<span class="h-name">${name}</span>` +
+            typeTag +
+            `<span class="h-cards">${cardsHtml}</span>`;
+    }
+
+    list.appendChild(item);
+    // 超出上限移除最早的
+    while (list.children.length > MAX_HISTORY) {
+        list.removeChild(list.firstChild);
+    }
+    // 自动滚动到底部
+    list.scrollTop = list.scrollHeight;
+}
+
+/** 清空出牌历史 */
+function clearHistory() {
+    $('history-list').innerHTML = '';
+}
+
+// ============================================================
 //  发牌飞入动画
 // ============================================================
 
@@ -267,18 +347,29 @@ function onDealStart(msg) {
     dealState.hands = [[], [], []];
     dealState.dizhuCards = [];
 
+    // 更新局数和积分排行
+    if (msg.game_count) {
+        $('game-count-text').textContent = `第${msg.game_count}局`;
+    }
+    updateScoreboard(msg.total_scores);
+
     msg.players.forEach(p => {
         $(`name-${p.id}`).textContent = p.name;
         setRole(p.id, '');
         $(`hand-${p.id}`).innerHTML = '';
         updateCount(p.id, 0);
+        playerNames[p.id] = p.name;  // 存储玩家名用于历史记录
     });
+    clearHistory();  // 新局清空出牌历史
 }
 
 /** 逐张发牌：收到一张牌（带飞入动画） */
 function onDealCard(msg) {
     const pid = msg.player_id;
     dealState.hands[pid].push(msg.card);
+
+    // 音效
+    sfxDealCard();
 
     // 触发飞入动画
     flyCardToHand(pid);
@@ -464,11 +555,17 @@ function onPlay(msg) {
     const label = msg.hand_type ? `<div class="hand-type-label">${msg.hand_type}</div>` : '';
     const strategy = msg.strategy ? `<div class="strategy-text">${msg.strategy}</div>` : '';
 
-    // 根据牌型选择动画
+    // 根据牌型选择动画 + 音效
     if (msg.is_bomb) {
+        if (msg.hand_type === '火箭') {
+            sfxRocket();
+        } else {
+            sfxBomb();
+        }
         triggerBombEffect(msg.hand_type === '火箭');
         setAction(msg.player_id, label + cardsHtml + strategy, 'anim-bomb');
     } else {
+        sfxPlayCard();
         setAction(msg.player_id, label + cardsHtml + strategy, 'anim-fly-in');
     }
 
@@ -478,16 +575,23 @@ function onPlay(msg) {
         const m = parseInt(cur.replace(/\D/g, '')) || 1;
         $('multiplier-text').textContent = `倍数: ${m * 2}`;
     }
+
+    // 添加出牌历史记录
+    addHistoryItem(msg.player_id, msg.hand_type, msg.cards, false);
 }
 
 /** 不出 */
 function onPass(msg) {
     highlightSeat(msg.player_id);
+    sfxPass();
     const strategy = msg.strategy ? `<div class="strategy-text">${msg.strategy}</div>` : '';
     setAction(msg.player_id,
         `<span class="action-text">不出</span>${strategy}`,
         'anim-pass'
     );
+
+    // 添加不出历史记录
+    addHistoryItem(msg.player_id, null, null, true);
 }
 
 /** 结算 */
@@ -502,27 +606,150 @@ function onResult(msg) {
 
     // 详情
     const details = [];
+    if (msg.game_count) details.push(`第${msg.game_count}局`);
     if (msg.is_spring) details.push('🌸 春天！');
     if (msg.is_anti_spring) details.push('🔄 反春！');
     if (msg.bomb_count > 0) details.push(`💣 炸弹 ×${msg.bomb_count}`);
     details.push(`倍数: ${msg.multiplier}`);
     $('result-detail').textContent = details.join('  ');
 
-    // 积分表格
+    // 积分表格（含累计积分列）
     const table = $('result-table');
-    let html = '<tr><th>玩家</th><th>角色</th><th>积分</th></tr>';
-    msg.scores.forEach(s => {
+    let html = '<tr><th>玩家</th><th>角色</th><th>本局</th><th>累计</th></tr>';
+    msg.scores.forEach((s, i) => {
         const r = s.role.toUpperCase() === 'LANDLORD' ? '地主' : '农民';
         const color = s.score > 0 ? '#4caf50' : '#e74c3c';
-        html += `<tr><td>${s.name}</td><td>${r}</td><td style="color:${color}">${s.score > 0 ? '+' : ''}${s.score}</td></tr>`;
+        const total = msg.total_scores ? msg.total_scores[i].total_score : s.score;
+        const totalColor = total > 0 ? '#4caf50' : total < 0 ? '#e74c3c' : '#888';
+        html += `<tr><td>${s.name}</td><td>${r}</td>` +
+            `<td style="color:${color}">${s.score > 0 ? '+' : ''}${s.score}</td>` +
+            `<td style="color:${totalColor};font-weight:bold">${total > 0 ? '+' : ''}${total}</td></tr>`;
     });
     table.innerHTML = html;
+
+    // 更新积分排行榜
+    updateScoreboard(msg.total_scores);
+    flashScores();
+
+    // 结算音效
+    sfxWin();
 
     // 显示弹窗
     $('result-modal').style.display = 'flex';
 
     // 自动倒计时 10 秒后开始下一局
     startRestartCountdown(10);
+}
+
+// ============================================================
+//  Web Audio 音效系统（合成音效，无需音频文件）
+// ============================================================
+
+let audioCtx = null;
+let sfxVolume = 0.3;  // 音量 0~1
+
+/** 懒初始化 AudioContext（需用户交互后才能创建） */
+function ensureAudioCtx() {
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
+    return audioCtx;
+}
+
+/** 播放一个简单音调 */
+function playTone(freq, duration, type = 'sine', vol = sfxVolume) {
+    const ctx = ensureAudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(vol, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + duration);
+}
+
+/** 发牌音：短促清脆的"啪" */
+function sfxDealCard() {
+    playTone(800, 0.06, 'square', sfxVolume * 0.4);
+}
+
+/** 出牌音：中等音调 */
+function sfxPlayCard() {
+    playTone(600, 0.1, 'triangle', sfxVolume * 0.6);
+}
+
+/** 不出音：低沉短音 */
+function sfxPass() {
+    playTone(300, 0.15, 'sine', sfxVolume * 0.3);
+}
+
+/** 炸弹音：低频震动 + 高频爆裂 */
+function sfxBomb() {
+    const ctx = ensureAudioCtx();
+    const t = ctx.currentTime;
+    // 低频轰鸣
+    const osc1 = ctx.createOscillator();
+    const g1 = ctx.createGain();
+    osc1.type = 'sawtooth';
+    osc1.frequency.setValueAtTime(80, t);
+    osc1.frequency.exponentialRampToValueAtTime(40, t + 0.4);
+    g1.gain.setValueAtTime(sfxVolume, t);
+    g1.gain.exponentialRampToValueAtTime(0.01, t + 0.4);
+    osc1.connect(g1);
+    g1.connect(ctx.destination);
+    osc1.start(t);
+    osc1.stop(t + 0.4);
+    // 高频爆裂
+    const osc2 = ctx.createOscillator();
+    const g2 = ctx.createGain();
+    osc2.type = 'square';
+    osc2.frequency.setValueAtTime(1200, t);
+    osc2.frequency.exponentialRampToValueAtTime(200, t + 0.2);
+    g2.gain.setValueAtTime(sfxVolume * 0.7, t);
+    g2.gain.exponentialRampToValueAtTime(0.01, t + 0.25);
+    osc2.connect(g2);
+    g2.connect(ctx.destination);
+    osc2.start(t);
+    osc2.stop(t + 0.25);
+}
+
+/** 火箭音：上升音阶 + 爆炸 */
+function sfxRocket() {
+    const ctx = ensureAudioCtx();
+    const t = ctx.currentTime;
+    // 上升音
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(200, t);
+    osc.frequency.exponentialRampToValueAtTime(2000, t + 0.3);
+    g.gain.setValueAtTime(sfxVolume * 0.6, t);
+    g.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
+    osc.connect(g);
+    g.connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + 0.5);
+    // 延迟爆炸
+    setTimeout(() => sfxBomb(), 250);
+}
+
+/** 胜利音：上升三和弦 */
+function sfxWin() {
+    playTone(523, 0.2, 'triangle', sfxVolume * 0.5);  // C5
+    setTimeout(() => playTone(659, 0.2, 'triangle', sfxVolume * 0.5), 150);  // E5
+    setTimeout(() => playTone(784, 0.4, 'triangle', sfxVolume * 0.6), 300);  // G5
+}
+
+/** 失败音：下降二音 */
+function sfxLose() {
+    playTone(400, 0.25, 'sine', sfxVolume * 0.4);
+    setTimeout(() => playTone(280, 0.35, 'sine', sfxVolume * 0.4), 200);
 }
 
 // ============================================================

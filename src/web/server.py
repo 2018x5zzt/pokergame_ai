@@ -120,6 +120,17 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 # WebSocket 连接池
 connections: Set[WebSocket] = set()
 
+# ============================================================
+#  模块级持久化：跨局复用玩家和 AI 实例（保留累计积分）
+# ============================================================
+
+PLAYER_NAMES = ["烈焰哥🔥", "冰山姐❄️", "戏精弟🎭"]
+persistent_strategies: List = create_llm_players(PLAYER_NAMES)
+persistent_players: List[Player] = [
+    Player(id=i, name=name) for i, name in enumerate(PLAYER_NAMES)
+]
+game_count: int = 0
+
 
 async def broadcast_thinking(player_id: int, phase: str, seconds: int) -> None:
     """广播 AI 思考倒计时：先发 thinking 开始，然后逐秒倒计时"""
@@ -188,10 +199,19 @@ async def websocket_endpoint(ws: WebSocket):
 
 async def run_game_async() -> None:
     """异步驱动一局完整对局，每步实时推送事件到前端"""
-    names = ["烈焰哥🔥", "冰山姐❄️", "戏精弟🎭"]
-    llm_players = create_llm_players(names)
-    # GameController 仍使用同步接口（LlmAI 的同步方法 fallback 到 RuleAI）
-    gc = GameController(player_names=names, strategies=llm_players)
+    global game_count
+    game_count += 1
+
+    # 复用模块级玩家实例（保留累计积分），重置本局状态
+    for p in persistent_players:
+        p.reset_for_new_game()
+
+    # GameController 使用持久化玩家和策略
+    gc = GameController.__new__(GameController)
+    gc.players = persistent_players
+    gc.strategies = persistent_strategies
+    gc.state = GameState(players=persistent_players)
+    gc._callbacks = []
 
     # 发牌
     gc.deal()
@@ -200,6 +220,11 @@ async def run_game_async() -> None:
     await broadcast({
         "type": "deal_start",
         "players": [{"id": p.id, "name": p.name} for p in gc.players],
+        "game_count": game_count,
+        "total_scores": [
+            {"id": p.id, "name": p.name, "total_score": p.score}
+            for p in gc.players
+        ],
     })
     await asyncio.sleep(0.5)
 
@@ -228,7 +253,7 @@ async def run_game_async() -> None:
     await asyncio.sleep(1.0)
 
     # 叫地主阶段（异步逐步，带思考倒计时）
-    await run_bidding_async(gc, llm_players)
+    await run_bidding_async(gc, persistent_strategies)
 
     if gc.state.highest_bidder is None:
         gc.state.highest_bid = 1
@@ -248,7 +273,7 @@ async def run_game_async() -> None:
     await asyncio.sleep(1.5)
 
     # 出牌阶段：逐步执行，每步实时推送
-    await run_playing_async(gc, llm_players)
+    await run_playing_async(gc, persistent_strategies)
 
 
 # ============================================================
@@ -299,6 +324,9 @@ async def run_bidding_async(gc: GameController, strategies) -> None:
 async def run_playing_async(gc: GameController, strategies) -> None:
     """逐步执行出牌，每步实时推送正确的手牌和 hand_size"""
     s = gc.state
+
+    # 记录本局开始前的累计积分（用于计算本局得分差值）
+    scores_before = {p.id: p.score for p in gc.players}
 
     while s.phase == GamePhase.PLAYING:
         pid = s.current_player
@@ -389,11 +417,11 @@ async def run_playing_async(gc: GameController, strategies) -> None:
             s.current_player = (pid + 1) % 3
 
     # 结算
-    await send_result(gc)
+    await send_result(gc, scores_before)
 
 
-async def send_result(gc: GameController) -> None:
-    """推送结算信息"""
+async def send_result(gc: GameController, scores_before: dict) -> None:
+    """推送结算信息（scores_before: 本局开始前各玩家累计积分）"""
     s = gc.state
     winner = gc.players[s.winner]
     m = max(s.highest_bid, 1) * (2 ** s.bomb_count)
@@ -409,8 +437,17 @@ async def send_result(gc: GameController) -> None:
         "is_anti_spring": s.is_anti_spring,
         "bomb_count": s.bomb_count,
         "multiplier": m,
+        "game_count": game_count,
         "scores": [
-            {"name": p.name, "role": p.role.value, "score": p.score}
+            {
+                "name": p.name,
+                "role": p.role.value,
+                "score": p.score - scores_before.get(p.id, 0),
+            }
+            for p in gc.players
+        ],
+        "total_scores": [
+            {"id": p.id, "name": p.name, "total_score": p.score}
             for p in gc.players
         ],
     })
