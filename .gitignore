@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+dist/
+build/
+*.whl
+
+# Virtual environments
+.env
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs & DB
+*.log
+*.sqlite
+*.sqlite3
+
+# Screenshots & temp images (调试截图不入库)
+*.png
+*.jpg
+*.jpeg
+
+# Playwright MCP cache
+.playwright-mcp/
+
+# Pytest cache
+.pytest_cache/
+
+# Spec workflow (CCCC 工具生成)
+.spec-workflow/
+
+# Docker (本地覆盖)
+docker-compose.override.yml
+
+# Node (如果后续引入前端构建)
+node_modules/

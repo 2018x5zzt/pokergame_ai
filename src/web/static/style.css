@@ -1,0 +1,450 @@
+/* ============================================================
+   AI 斗地主 - 直播画面样式（1920×1080 适配）
+   布局：上1下2 经典斗地主牌桌视角
+   ============================================================ */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    background: #1a5c2a;
+    background-image: radial-gradient(ellipse at center, #2d7a3e 0%, #0d3318 100%);
+    color: #fff;
+    font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    width: 1920px;
+    height: 1080px;
+    overflow: hidden;
+}
+
+#app {
+    width: 1920px;
+    height: 1080px;
+    position: relative;
+}
+
+/* ============================================================
+   顶部信息栏
+   ============================================================ */
+
+.top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 32px;
+    height: 56px;
+    background: rgba(0,0,0,0.35);
+}
+.top-bar h1 { font-size: 22px; white-space: nowrap; }
+.game-info { font-size: 16px; color: #ffd700; white-space: nowrap; }
+.game-info span { margin-left: 16px; }
+
+/* 底牌（顶部栏中央） */
+.top-bar .dizhu-cards {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.top-bar .dizhu-cards .label {
+    font-size: 14px;
+    color: #ffd700;
+    letter-spacing: 2px;
+}
+.top-bar .dizhu-cards .cards {
+    display: flex;
+    gap: 4px;
+}
+.top-bar .dizhu-cards .card {
+    margin: 0;
+    width: 42px;
+    height: 60px;
+}
+
+/* ============================================================
+   牌桌 & 座位布局（上1下2，16:9 直播适配）
+   ============================================================ */
+
+.table {
+    position: relative;
+    width: 1920px;
+    height: 1024px; /* 1080 - 56px top-bar */
+}
+
+/* 座位通用 */
+.seat {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transition: filter 0.3s;
+}
+
+/* 上方玩家（居中） */
+.seat-top {
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+/* 左下玩家 */
+.seat-bottom-left {
+    left: 80px;
+    bottom: 40px;
+    align-items: flex-start;
+}
+
+/* 右下玩家 */
+.seat-bottom-right {
+    right: 80px;
+    bottom: 40px;
+    align-items: flex-end;
+}
+
+/* ============================================================
+   中央出牌展示区
+   ============================================================ */
+
+.center-play-area {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+    min-width: 600px;
+}
+
+.action-slot {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    min-height: 90px;
+    min-width: 280px;
+    gap: 2px;
+}
+
+.action-slot .action-text {
+    font-size: 20px;
+    font-weight: bold;
+    color: #ffd700;
+    text-shadow: 0 0 8px rgba(255,215,0,0.5);
+}
+
+.action-row-bottom {
+    display: flex;
+    justify-content: space-between;
+    width: 800px;
+    gap: 120px;
+}
+
+.action-slot-left {
+    justify-content: flex-start;
+}
+.action-slot-left .card {
+    width: 44px;
+    height: 62px;
+    margin: 0 -4px;
+}
+
+.action-slot-right {
+    justify-content: flex-end;
+}
+.action-slot-right .card {
+    width: 44px;
+    height: 62px;
+    margin: 0 -4px;
+}
+
+/* ============================================================
+   玩家信息
+   ============================================================ */
+
+.player-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    white-space: nowrap;
+}
+
+.player-name {
+    font-size: 18px;
+    font-weight: bold;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+}
+
+.role-tag {
+    font-size: 14px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: bold;
+}
+.role-tag.landlord {
+    background: #e74c3c;
+    color: #fff;
+}
+.role-tag.farmer {
+    background: #3498db;
+    color: #fff;
+}
+
+.hand-count {
+    font-size: 14px;
+    color: #aaa;
+}
+
+/* ============================================================
+   卡牌 - 正面
+   ============================================================ */
+
+.card {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    height: 74px;
+    background: linear-gradient(160deg, #ffffff 0%, #f5f5f0 60%, #e8e8e0 100%);
+    color: #1A1A2E;
+    border: 1px solid #d0d0d0;
+    border-radius: 8px;
+    font-weight: bold;
+    margin: 0 -6px;
+    box-shadow:
+        1px 2px 4px rgba(0,0,0,0.3),
+        2px 4px 8px rgba(0,0,0,0.15),
+        inset 0 1px 0 rgba(255,255,255,0.8);
+    position: relative;
+    vertical-align: top;
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.card .suit { font-size: 13px; }
+.card .rank-text { font-size: 18px; line-height: 1; font-family: "Georgia", serif; }
+
+.card.red { color: #E63946; }
+
+.card.joker-small {
+    background: linear-gradient(135deg, #0d1b2a 0%, #1b2838 40%, #1a3a5c 100%);
+    color: #4fc3f7;
+    border-color: #2a5a8a;
+    box-shadow:
+        1px 2px 4px rgba(0,0,0,0.4),
+        2px 4px 8px rgba(0,0,0,0.2),
+        inset 0 0 12px rgba(79,195,247,0.15);
+}
+.card.joker-big {
+    background: linear-gradient(135deg, #3a0a0a 0%, #6b1a1a 40%, #8b2020 100%);
+    color: #ff6f61;
+    border-color: #a03030;
+    box-shadow:
+        1px 2px 4px rgba(0,0,0,0.4),
+        2px 4px 8px rgba(0,0,0,0.2),
+        inset 0 0 12px rgba(255,111,97,0.15);
+}
+
+/* 卡牌 - 背面（深蓝菱形纹理，对标 docs/02 §6.1） */
+.card-back {
+    display: inline-block;
+    width: 40px;
+    height: 58px;
+    background:
+        repeating-linear-gradient(
+            45deg,
+            transparent,
+            transparent 6px,
+            rgba(255,255,255,0.06) 6px,
+            rgba(255,255,255,0.06) 7px
+        ),
+        repeating-linear-gradient(
+            -45deg,
+            transparent,
+            transparent 6px,
+            rgba(255,255,255,0.06) 6px,
+            rgba(255,255,255,0.06) 7px
+        ),
+        linear-gradient(135deg, #0f1f4a 0%, #1a2a5a 50%, #152050 100%);
+    border: 2px solid #3a5a9a;
+    border-radius: 6px;
+    box-shadow:
+        1px 2px 4px rgba(0,0,0,0.4),
+        inset 0 0 8px rgba(0,0,0,0.3);
+    margin: 0 -8px;
+    vertical-align: top;
+}
+
+/* ============================================================
+   手牌区（所有玩家统一水平排列）
+   ============================================================ */
+
+.player-hand {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    min-height: 80px;
+    padding: 4px 0;
+    max-width: 720px;
+}
+
+/* 下方两位玩家手牌稍微紧凑，卡牌缩小保持视觉层次 */
+.seat-bottom-left .player-hand,
+.seat-bottom-right .player-hand {
+    max-width: 640px;
+}
+.seat-bottom-left .player-hand .card,
+.seat-bottom-right .player-hand .card {
+    width: 44px;
+    height: 62px;
+    margin: 0 -5px;
+}
+.seat-bottom-left .player-hand .card .suit,
+.seat-bottom-right .player-hand .card .suit {
+    font-size: 11px;
+}
+.seat-bottom-left .player-hand .card .rank-text,
+.seat-bottom-right .player-hand .card .rank-text {
+    font-size: 15px;
+}
+
+/* 底牌样式（已移至顶部栏，保留通用 fallback） */
+.dizhu-cards .label {
+    font-size: 13px;
+    color: #ffd700;
+    letter-spacing: 2px;
+}
+.dizhu-cards .cards {
+    display: flex;
+    gap: 4px;
+}
+
+/* ============================================================
+   结算弹窗
+   ============================================================ */
+
+.modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+}
+
+.modal-content {
+    background: linear-gradient(135deg, #1a3a2a, #0d2818);
+    border: 2px solid #ffd700;
+    border-radius: 16px;
+    padding: 28px 36px;
+    text-align: center;
+    min-width: 320px;
+}
+
+.modal-content h2 {
+    font-size: 22px;
+    color: #ffd700;
+    margin-bottom: 12px;
+}
+
+#result-detail {
+    font-size: 14px;
+    color: #ccc;
+    margin-bottom: 16px;
+}
+
+#result-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 16px;
+}
+#result-table th,
+#result-table td {
+    padding: 6px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.15);
+    font-size: 14px;
+}
+#result-table th {
+    color: #ffd700;
+}
+
+/* ============================================================
+   按钮
+   ============================================================ */
+
+button {
+    background: linear-gradient(135deg, #e74c3c, #c0392b);
+    color: #fff;
+    border: none;
+    padding: 10px 28px;
+    border-radius: 8px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+button:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(231,76,60,0.5);
+}
+button:active {
+    transform: scale(0.97);
+}
+
+/* ============================================================
+   开始遮罩
+   ============================================================ */
+
+.start-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 200;
+}
+
+.start-overlay button {
+    font-size: 24px;
+    padding: 16px 48px;
+}
+
+/* ============================================================
+   动画
+   ============================================================ */
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes bombShake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+    20%, 40%, 60%, 80% { transform: translateX(4px); }
+}
+
+@keyframes popIn {
+    from { opacity: 0; transform: scale(0.6); }
+    to   { opacity: 1; transform: scale(1); }
+}
+
+.anim-fade { animation: fadeIn 0.4s ease-out; }
+.anim-bomb { animation: bombShake 0.5s ease-out; }
+.anim-pop  { animation: popIn 0.3s ease-out; }
+
+/* 当前出牌玩家高亮 */
+.seat.active .player-name {
+    color: #ffd700;
+    text-shadow: 0 0 10px rgba(255,215,0,0.7);
+}
+
+/* 策略文本（放大适配直播） */
+.strategy-text {
+    font-size: 14px;
+    color: #4fc3f7;
+    margin-top: 6px;
+    text-align: center;
+    text-shadow: 0 0 6px rgba(79,195,247,0.4);
+    white-space: nowrap;
+}

@@ -1,0 +1,12 @@
+services:
+  doudizhu:
+    build: .
+    container_name: ai-doudizhu
+    env_file:
+      - .env
+    volumes:
+      - ./src:/app/src
+      - ./config:/app/config
+      - ./data:/app/data
+    stdin_open: true
+    tty: true

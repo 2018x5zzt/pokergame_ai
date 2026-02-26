@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, height=1080, initial-scale=1.0">
+    <title>AI 斗地主 - 直播画面</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- 顶部信息栏 -->
+        <div class="top-bar">
+            <h1>🀄 AI 斗地主</h1>
+            <div class="dizhu-cards" id="dizhu-cards">
+                <span class="label">底牌</span>
+                <div class="cards" id="dizhu-cards-list"></div>
+            </div>
+            <div class="game-info">
+                <span id="phase-text">等待开始</span>
+                <span id="multiplier-text"></span>
+            </div>
+        </div>
+
+        <!-- 牌桌区域 -->
+        <div class="table">
+            <!-- 玩家0：上方（居中） -->
+            <div class="seat seat-top" id="seat-0">
+                <div class="player-info">
+                    <span class="player-name" id="name-0">烈焰哥🔥</span>
+                    <span class="role-tag" id="role-0"></span>
+                    <span class="hand-count" id="count-0">17张</span>
+                </div>
+                <div class="player-hand" id="hand-0"></div>
+            </div>
+
+            <!-- 中央出牌区：三人的出牌动作统一展示 -->
+            <div class="center-play-area">
+                <div class="action-slot action-slot-top" id="action-0"></div>
+                <div class="action-row-bottom">
+                    <div class="action-slot action-slot-left" id="action-1"></div>
+                    <div class="action-slot action-slot-right" id="action-2"></div>
+                </div>
+            </div>
+
+            <!-- 玩家1：左下 -->
+            <div class="seat seat-bottom-left" id="seat-1">
+                <div class="player-info">
+                    <span class="player-name" id="name-1">冰山姐❄️</span>
+                    <span class="role-tag" id="role-1"></span>
+                    <span class="hand-count" id="count-1">17张</span>
+                </div>
+                <div class="player-hand" id="hand-1"></div>
+            </div>
+
+            <!-- 玩家2：右下 -->
+            <div class="seat seat-bottom-right" id="seat-2">
+                <div class="player-info">
+                    <span class="player-name" id="name-2">戏精弟🎭</span>
+                    <span class="role-tag" id="role-2"></span>
+                    <span class="hand-count" id="count-2">17张</span>
+                </div>
+                <div class="player-hand" id="hand-2"></div>
+            </div>
+        </div>
+
+        <!-- 结算弹窗 -->
+        <div class="modal" id="result-modal" style="display:none">
+            <div class="modal-content">
+                <h2 id="result-title"></h2>
+                <div id="result-detail"></div>
+                <table id="result-table"></table>
+                <button id="btn-restart">再来一局</button>
+            </div>
+        </div>
+
+        <!-- 开始按钮 -->
+        <div class="start-overlay" id="start-overlay">
+            <button id="btn-start">开始对局</button>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
