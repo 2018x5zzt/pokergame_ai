@@ -418,8 +418,9 @@ function onBid(msg) {
     $('phase-text').textContent = '叫地主阶段';
     highlightSeat(msg.player_id);
     const bidText = msg.bid > 0 ? `叫 ${msg.bid} 分` : '不叫';
+    const strategy = msg.strategy ? `<div class="strategy-text">${msg.strategy}</div>` : '';
     setAction(msg.player_id,
-        `<span class="action-text">${bidText}</span>`,
+        `<span class="action-text">${bidText}</span>${strategy}`,
         'anim-fade'
     );
 }
