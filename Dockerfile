@@ -10,4 +10,6 @@ COPY . .
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 
-CMD ["python", "-m", "src.main"]
+EXPOSE 8000
+
+CMD ["python", "-m", "uvicorn", "src.web.server:app", "--host", "0.0.0.0", "--port", "8000"]
